@@ -2,20 +2,27 @@
 #include"Token.h"
 #include<iostream>
 #include<string>
+#define NUM_OF_KEYWORD 32
 using std::cout,std::string;
 // scanner file pointer
 FILE * sfp=fopen("input.txt","r");
 unsigned int state;
 string token_value;
 unsigned int line_no=1;
+string keywords[32]={"auto","double","int","struct","break","else","long","switch","case","enum","register","typedef","char","extern","return","union","const","float","short","unsigned","continue","for","signed","void",
+"default","goto","sizeof","volatile","do","if","static","while"};
 
 enum STATES{
-    BEGIN,ID,ID_KEYWORD,NUMBER_0,NUMBER_1,NUMBER_2,NUMBER_3,
-    NUMBER_4,NUMBER_5,GT,LT,ASSIGN,NOT
+    BEGIN,ID,NUMBER_0,NUMBER_1,NUMBER_2,NUMBER_3,
+    NUMBER_4,NUMBER_5,GT,LT,ASSIGN,NOT,ADD,SUBTRACT,AND,OR
 };
 
 bool is_digit(char c){
     return c>='0' && c<='9';
+}
+
+bool is_letter(char c){
+    return c>='a' && c<='z' || c>='A' && c<='Z';
 }
 
 bool is_lowercase_letter(char c){
@@ -33,12 +40,22 @@ bool is_newline(char c){
     return c=='\n';
 }
 
+bool is_keyword(string s){
+    for(int i=0;i<NUM_OF_KEYWORD;i++)
+        if(keywords[i]==s)
+            return true;
+    return false;
+}
+
 // go back one character
 void retractFilePointer(){
     if(!feof(sfp))
         fseek(sfp,-1,SEEK_CUR);
 }
 
+Token * generateToken(string name,string value=""){
+    return new Token(name,value);
+}
 
 Token * scan(){
     state=BEGIN;
@@ -57,14 +74,20 @@ Token * scan(){
             case BEGIN:
                 if(is_digit(c))
                     state=NUMBER_0;
-                else if(is_lowercase_letter(c))
-                    state=ID_KEYWORD;
                 else if(is_start_of_id(c))
                     state=ID;
                 else if(is_whitespace(c)){
                     state=BEGIN;
                     token_value="";
                 }
+                else if(c=='*' || c=='/')
+                    return generateToken("MULOP",token_value);
+                else if(c=='%')
+                    return generateToken("MODOP");
+                else if(c=='+')
+                    state=ADD;
+                else if(c=='-')
+                    state=SUBTRACT;
                 // relational operators
                 else if(c=='>')
                     state=GT;
@@ -75,13 +98,49 @@ Token * scan(){
                 else if(c=='!')
                     state=NOT;
                 //logical operators
-                //arithmetic operators
+                else if(c=='&')
+                    state=AND;
+                else if(c=='|')
+                    state=OR;
+                else if(c=='^')
+                    return generateToken("BITOP","^");
+                // punctuations
+                else if(c=='{')
+                    return generateToken("LCURL");
+                else if(c=='}')
+                    return generateToken("RCURL");
+                else if(c=='(')
+                    return generateToken("LPAREN");
+                else if(c==')')
+                    return generateToken("RPAREN");
+                else if(c=='[')
+                    return generateToken("LTHIRD");
+                else if(c==']')
+                    return generateToken("RTHIRD");
+                else if(c==';')
+                    return generateToken("SEMICOLON");
+                else if(c==',')
+                    return generateToken("COMMA");
                 // invalid character
                 else return NULL;
+                break;
+            case ID:
+                if(is_digit(c) || is_letter(c) || c=='_')
+                    continue;
+                else{
+                    retractFilePointer();
+                    string tok=token_value.substr(0,token_value.length()-1);
+                    if(!is_keyword(tok))
+                        return new Token("ID",tok);
+                    else
+                        return new Token(tok);
+                }
                 break;
             case GT:
                 if(c=='=')
                     return new Token("RELOP","GE");
+                else if(c=='>')
+                    return generateToken("BITOP",">>");
                 else{
                     retractFilePointer();
                     return new Token("RELOP","GT");
@@ -90,6 +149,8 @@ Token * scan(){
             case LT:
                 if(c=='=')
                     return new Token("RELOP","LE");
+                else if(c=='<')
+                    return generateToken("BITOP","<<");
                 else{
                     retractFilePointer();
                     return new Token("RELOP","LT");
@@ -162,44 +223,38 @@ Token * scan(){
                     return new Token("CONST_FLOAT",token_value.substr(0,token_value.length()-1));
                 }
                 break;
-            // case 1:
-            //     if(c=='f'){
-            //         return new Token("IF");
-            //     }
-            //     return NULL;
-            // case 3:
-            //     if(c=='h')
-            //         state=4;
-            //     else
-            //         return NULL;
-            //     break;
-            // case 4:
-            //     if(c=='e')
-            //         state=5;
-            //     else 
-            //         return NULL;
-            //     break;
-            // case 5:
-            //     if(c=='n'){
-            //         return new Token("THEN");
-            //     }
-            //     return NULL; 
-            // case 7:
-            //     if(c=='l')
-            //         state=8;
-            //     else
-            //         return NULL;
-            //     break;
-            // case 8:
-            //     if(c=='s')
-            //         state=9;
-            //     else
-            //         return NULL;
-            //     break;
-            // case 9:
-            //     if(c=='e')
-            //         return new Token("ELSE");
-            //     return NULL;
+            case ADD:
+                if(c=='+')
+                    return generateToken("INC");
+                else{
+                    retractFilePointer();
+                    return generateToken("ADDOP","+");
+                }
+                break;
+            case SUBTRACT:
+                if(c=='-')
+                    return generateToken("DEC");
+                else{
+                    retractFilePointer();
+                    return generateToken("ADDOP","-");
+                }
+                break;
+            case AND:
+                if(c=='&')
+                    return generateToken("LOGICOP","&&");
+                else{
+                    retractFilePointer();
+                    return generateToken("BITOP","&");
+                }
+                break;
+            case OR:
+                if(c=='|')
+                    return generateToken("LOGICOP","||");
+                else{
+                    retractFilePointer();
+                    return generateToken("BITOP","|");
+                }
+                break;
             default:
                 break;
         }
@@ -211,6 +266,7 @@ int main(int argc,char * argv[]){
     while ((t=scan())!=NULL)
     {
         cout<<'<'<<t->name<<','<<t->value<<'>'<<'\n';
+        delete t;
     };
     cout<<"lines: "<<line_no<<'\n';
     
