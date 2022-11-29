@@ -9,7 +9,7 @@
        
     void main()  
     {  
-      int number;  
+      int number=5;  
       long fact;  
       fact = factorial(number);   
       return 0;  
